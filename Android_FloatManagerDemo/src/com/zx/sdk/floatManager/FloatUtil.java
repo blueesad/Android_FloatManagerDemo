@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Message;
@@ -27,9 +28,10 @@ public class FloatUtil {
 	private ImageView mView;
 	private WindowManager.LayoutParams mParams;
 	private WindowManager mWindowManager;
-	private int oldX; // 相对于自身左上角的x坐标值
-	private int oldY;
+	private float oldX; // 相对于自身左上角的x坐标值
+	private float oldY;
 	private int screen_widht; // 屏幕宽度
+	private int screen_height;
 	private int rawX = 0; // 相对于屏幕左上角的x坐标值
 	private boolean isShowFloat = false; // 浮标是否显示标记
 	private boolean isMove = false;
@@ -37,6 +39,8 @@ public class FloatUtil {
 	public static final int MESSAGE_CLEAR_ANIMATION = 1;
 	public static final int MESSAGE_RESET_ANIMATION = 2;
 	private TimeCount count;
+	private float xInScreen;
+	private float yInScreen;
 
 	private Handler mHandler = new Handler() {
 		public void handleMessage(Message msg) {
@@ -59,7 +63,7 @@ public class FloatUtil {
 				}
 
 				break;
-				
+
 			default:
 				break;
 			}
@@ -79,27 +83,28 @@ public class FloatUtil {
 	}
 
 	private void init(Context context) {
-		Log.d(TAG+"init", "init");
+		Log.d(TAG + "init", "init");
 		this.mContext = context;
 		this.count = new TimeCount(5000L, 1000L);
-	
+
 		createFloatView();
 		// 横屏
-		((Activity) context).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-		
+		((Activity) context)
+				.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+
 		isShowFloat = true;
 	}
 
 	public void createFloatView() {
-		Log.d(TAG+"createFloatView", "createFloatView");
+		Log.d(TAG + "createFloatView", "createFloatView");
 		Log.d(TAG, "mContext = " + this.mContext);
 		// 得到窗口管理器
 		this.mWindowManager = (WindowManager) mContext
 				.getSystemService(Context.WINDOW_SERVICE);
 		// 屏幕宽度
 		screen_widht = mWindowManager.getDefaultDisplay().getWidth();
+		screen_height = mWindowManager.getDefaultDisplay().getHeight();
 		Log.d(TAG, "mWindowManager = " + this.mWindowManager);
-		
 
 		// 创建一个用来做镜像(可以理解为悬浮窗)的ImageView
 		this.mView = new ImageView(mContext);
@@ -108,7 +113,7 @@ public class FloatUtil {
 
 		// 得到参数对象，用来设置给上面创建的镜像控件
 		this.mParams = new WindowManager.LayoutParams();
-		
+
 		this.mParams.type = 2;
 		Log.d(TAG, "浮标type = " + this.mParams.type);
 		// 镜像的宽，这里设置为由内容填充
@@ -120,10 +125,10 @@ public class FloatUtil {
 		// 设置镜像的透明度
 		this.mParams.alpha = 1F;
 		// 设置镜像的背景为透明的，如果不设置，背景是黑色的
-//		this.mParams.format = PixelFormat.TRANSLUCENT;
+		// this.mParams.format = PixelFormat.TRANSLUCENT;
 		this.mParams.format = 1;
 		// 设置这个镜像不抢占焦点
-//		this.mParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+		// this.mParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 		this.mParams.flags = 40;
 		// 镜像的初始位置 从屏幕左上角开始，但是不包括状态栏
 		this.mParams.x = 0;
@@ -139,10 +144,10 @@ public class FloatUtil {
 				switch (motionEvent.getAction()) {
 				case MotionEvent.ACTION_DOWN:
 					isMove = false;
-					Log.d(TAG, "按下"+ " isMove =" + isMove);
+					Log.d(TAG, "按下" + " isMove =" + isMove);
 					// 记录按下的坐标
-					oldX = (int) motionEvent.getX(); // 获取相对于自身左上角的x坐标值
-					oldY = (int) motionEvent.getY();
+					oldX = motionEvent.getX(); // 获取相对于自身左上角的x坐标值
+					oldY = motionEvent.getY();
 
 					// 恢复mView的位置、透明度
 					recoveryView();
@@ -153,18 +158,27 @@ public class FloatUtil {
 					break;
 				case MotionEvent.ACTION_MOVE:
 					isMove = true;
-					 Log.d(TAG, "移动" + " x =" + motionEvent.getX() + "  y = "+ motionEvent.getY()+ " isMove =" + isMove);
-					// 改变镜像的x 和 y的值
-					mParams.x += (int) (motionEvent.getX() - oldX);
-					mParams.y += (int) (motionEvent.getY() - oldY);
-					// 更新镜像
-					mWindowManager.updateViewLayout(mView, mParams);
-					mHandler.sendEmptyMessage(MESSAGE_CLEAR_ANIMATION);
 					
+					//用下列方法会抖动
+//					Log.d(TAG, "移动" + " x =" + motionEvent.getX() + "  y = "
+//							+ motionEvent.getY() + " isMove =" + isMove);
+//					// 改变镜像的x 和 y的值
+//					mParams.x += (int) (motionEvent.getX() - oldX);
+//					mParams.y += (int) (motionEvent.getY() - oldY);
+//					// 更新镜像
+//					mWindowManager.updateViewLayout(mView, mParams);
+
+					xInScreen = motionEvent.getRawX();
+					yInScreen = (motionEvent.getRawY() - screen_height/2);
+					mParams.x = ((int)(xInScreen - oldX));
+				    mParams.y = ((int)(yInScreen - oldY));
+				    mWindowManager.updateViewLayout(mView, mParams);
+				    mHandler.sendEmptyMessage(MESSAGE_CLEAR_ANIMATION);
+
 					break;
 
 				case MotionEvent.ACTION_UP:
-					Log.d(TAG, "抬起"+ " isMove =" + isMove);
+					Log.d(TAG, "抬起" + " isMove =" + isMove);
 					rawX = (int) motionEvent.getRawX() - mView.getWidth() / 2; // 获取相对于屏幕左上角的x坐标值
 					/**
 					 * 抬起时浮标靠边的动画
@@ -195,7 +209,6 @@ public class FloatUtil {
 					});
 					animator.start();
 
-
 					break;
 				}
 				mHandler.sendEmptyMessage(MESSAGE_RESET_ANIMATION);
@@ -217,24 +230,26 @@ public class FloatUtil {
 				}
 			}
 		});
-		
-		Log.d(TAG, "mWindowManager:"+ mWindowManager+"----"+"mView:"+ mView);
+
+		Log.d(TAG, "mWindowManager:" + mWindowManager + "----" + "mView:"
+				+ mView);
 	}
 
 	public void showFloatView() {
-		
-		Log.d(TAG+"showFloatView", "显示浮标");
+
+		Log.d(TAG + "showFloatView", "显示浮标");
 		Log.d(TAG, "mView = " + mView);
 		Log.d(TAG, "mWindowManager = " + mWindowManager);
 		Log.d(TAG, "mParams = " + mParams);
-		
+
 		if (!isShowFloat) {
 			if (this.mView != null) {
 				if (mView.getParent() == null) {
-//					createFloatView();
-					
-//						this.mWindowManager = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
-					
+					// createFloatView();
+
+					// this.mWindowManager = (WindowManager)
+					// mContext.getSystemService(Context.WINDOW_SERVICE);
+
 					this.mWindowManager.addView(this.mView, this.mParams);
 				} else {
 					this.mWindowManager.updateViewLayout(mView, mParams);
@@ -255,23 +270,23 @@ public class FloatUtil {
 	}
 
 	public void removeFloatView() {
+		Log.d("-------removeFloatView--------", "mContext------->" + mContext);
 		if (isShowFloat) {
-			Log.d(TAG+"removeFloatView", "隐藏浮标");
+			Log.d(TAG + "removeFloatView", "隐藏浮标");
 			mHandler.sendEmptyMessage(MESSAGE_CLEAR_ANIMATION);
-//			mWindowManager.removeView(mView);
 			mWindowManager.removeViewImmediate(mView);
-//			mWindowManager.removeViewImmediate(mView.getParent());
-//			mView = null;
 			isShowFloat = false;
+
 		}
+
 	}
-	
-	public void onDeleteFloat(){
+
+	public void onDeleteFloat() {
+		Log.d("-------onDeleteFloat--------", "mContext------->" + mContext);
 		if (isShowFloat) {
 			mWindowManager.removeViewImmediate(mView);
 		}
-		
-		
+
 		mWindowManager = null;
 		mView = null;
 		instance = null;
@@ -281,7 +296,7 @@ public class FloatUtil {
 	 * 无操作时自动掩藏浮标一半
 	 */
 	private void startAnimation() {
-		Log.e(TAG+"startAnimation", "---startAnimation---");
+		Log.e(TAG + "startAnimation", "---startAnimation---");
 		if (mView == null) {
 			return;
 		}
@@ -334,4 +349,14 @@ public class FloatUtil {
 			this.isStart = true;
 		}
 	}
+	
+	//获取 状态栏 高度
+	  private float getStatusBarHeight()
+	  {
+	    float statusBarHeight = 0.0F;
+	    Rect frame = new Rect();
+	    this.mView.getWindowVisibleDisplayFrame(frame);
+	    statusBarHeight = frame.top;
+	    return statusBarHeight;
+	  }
 }
